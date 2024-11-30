@@ -1,13 +1,13 @@
 from typing import Dict, List, Optional
 from pathlib import Path
 import os
-from dotenv import load_dotenv #type: ignore
-from langchain_community.embeddings import HuggingFaceEmbeddings # type: ignore
+from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings # type: ignore
 from langchain_community.vectorstores import Chroma # type: ignore  
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
 from langchain_openai import ChatOpenAI # type: ignore
 from langchain.chains import ConversationalRetrievalChain # type: ignore
-from langchain.memory import ConversationBufferMemory # type: ignore
+from langchain.memory.buffer import ConversationBufferMemory # type: ignore
 from bs4 import BeautifulSoup # type: ignore
 import markdown # type: ignore
 import time
@@ -18,9 +18,14 @@ from tenacity import ( # type: ignore
     retry_if_exception_type
 )
 import requests.exceptions
+import chromadb # type: ignore
+import chromadb.config # type: ignore
 
 # Load environment variables
 load_dotenv()
+
+# Configure ChromaDB to disable telemetry
+client = chromadb.Client(chromadb.config.Settings(anonymized_telemetry=False))
 
 class CodeAnalyzer:
     def __init__(self):
@@ -32,7 +37,8 @@ class CodeAnalyzer:
         # Initialize embeddings
         self.embeddings = HuggingFaceEmbeddings(
             model_name="all-MiniLM-L6-v2",
-            model_kwargs={'device': 'cpu'}
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
         )
         
         # Initialize LLM with GPT-4
@@ -53,11 +59,14 @@ class CodeAnalyzer:
         
         self.vector_store = None
         self.conversation_chain = None
+        
+        # Updated memory initialization
         self.memory = ConversationBufferMemory(
             memory_key="chat_history",
             return_messages=True,
             output_key="answer",
-            input_key="question"
+            input_key="question",
+            max_token_limit=2000  # Add token limit to prevent memory overflow
         )
         
         # Keep track of processed files and their contents
