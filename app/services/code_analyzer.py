@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -7,6 +7,7 @@ from langchain_community.vectorstores import Chroma # type: ignore
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
 from langchain_openai import ChatOpenAI # type: ignore
 from langchain.chains import ConversationalRetrievalChain # type: ignore
+from langchain.chains.conversational_retrieval.base import BaseConversationalRetrievalChain # type: ignore
 from langchain.memory import ConversationBufferWindowMemory # type: ignore
 from bs4 import BeautifulSoup # type: ignore
 import markdown # type: ignore
@@ -57,13 +58,6 @@ class CodeAnalyzer:
         self.vector_store = None
         self.conversation_chain = None
         
-        # Initialize memory with window size to prevent overflow
-        self.memory = ConversationBufferWindowMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            k=10  # Keep last 10 interactions
-        )
-        
         # Keep track of processed files and their contents
         self.file_map = {}
         self.file_contents = {}
@@ -73,6 +67,29 @@ class CodeAnalyzer:
             anonymized_telemetry=False,
             allow_reset=True,
             is_persistent=False  # Use in-memory storage for temporary sessions
+        )
+
+    def _create_chain(self) -> BaseConversationalRetrievalChain:
+        """Create a new conversation chain with proper configuration."""
+        memory = ConversationBufferWindowMemory(
+            memory_key="chat_history",
+            output_key="answer",
+            input_key="question",
+            return_messages=True,
+            k=10
+        )
+        
+        return ConversationalRetrievalChain.from_llm(
+            llm=self.llm,
+            retriever=self.vector_store.as_retriever(
+                search_kwargs={"k": 6}
+            ),
+            memory=memory,
+            return_source_documents=True,
+            verbose=True,
+            chain_type="stuff",
+            get_chat_history=lambda h: h,  # Simple chat history handler
+            combine_docs_chain_kwargs={"output_key": "answer"}
         )
 
     def process_code_files(self, files: List[Path]) -> None:
@@ -136,15 +153,8 @@ class CodeAnalyzer:
                 )
                 
                 # Create conversation chain
-                self.conversation_chain = ConversationalRetrievalChain.from_llm(
-                    self.llm,
-                    retriever=self.vector_store.as_retriever(
-                        search_kwargs={"k": 6}
-                    ),
-                    memory=self.memory,
-                    return_source_documents=True,
-                    verbose=True
-                )
+                self.conversation_chain = self._create_chain()
+                
             except Exception as e:
                 print(f"Error creating vector store: {str(e)}")
                 raise
@@ -227,15 +237,20 @@ class CodeAnalyzer:
             if time.time() - start_time > timeout:
                 return "⚠️ Request timed out. Please try again with a more specific query."
             
+            # Make the query
             response = self.conversation_chain({"question": enhanced_query})
             
-            # Add source information to response
-            if hasattr(response, 'source_documents') and response.source_documents:
-                sources = set(doc.metadata['file'] for doc in response.source_documents)
-                source_info = "\n\n📁 Sources:\n" + "\n".join(f"- {src}" for src in sources)
-                return response['answer'] + source_info
+            # Extract answer and sources
+            answer = response.get("answer", "")
+            source_docs = response.get("source_documents", [])
             
-            return response['answer']
+            # Add source information to response if available
+            if source_docs:
+                sources = set(doc.metadata['file'] for doc in source_docs)
+                source_info = "\n\n📁 Sources:\n" + "\n".join(f"- {src}" for src in sources)
+                return answer + source_info
+            
+            return answer
             
         except Exception as e:
             print(f"Detailed error: {str(e)}")
