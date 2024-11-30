@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Any
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -7,7 +7,7 @@ from langchain_community.vectorstores import Chroma # type: ignore
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
 from langchain_openai import ChatOpenAI # type: ignore
 from langchain.chains import ConversationalRetrievalChain # type: ignore
-from langchain_core.memory import BaseMemory # type: ignore
+from langchain.memory import ConversationBufferWindowMemory # type: ignore
 from bs4 import BeautifulSoup # type: ignore
 import markdown # type: ignore
 import time
@@ -23,28 +23,6 @@ import chromadb.config # type: ignore
 
 # Load environment variables
 load_dotenv()
-
-class ChatMemory(BaseMemory):
-    """Custom chat memory implementation."""
-    def __init__(self, max_tokens: int = 2000):
-        self.chat_history = []
-        self.max_tokens = max_tokens
-        
-    def load_memory_variables(self, inputs: dict) -> dict:
-        """Load memory variables."""
-        return {"chat_history": self.chat_history}
-    
-    def save_context(self, inputs: dict, outputs: dict) -> None:
-        """Save context from this conversation to buffer."""
-        if "question" in inputs and "answer" in outputs:
-            self.chat_history.append((inputs["question"], outputs["answer"]))
-            # Keep only recent history to prevent token overflow
-            if len(self.chat_history) > 10:  # Adjust this number based on your needs
-                self.chat_history = self.chat_history[-10:]
-    
-    def clear(self) -> None:
-        """Clear memory contents."""
-        self.chat_history = []
 
 class CodeAnalyzer:
     def __init__(self):
@@ -79,8 +57,12 @@ class CodeAnalyzer:
         self.vector_store = None
         self.conversation_chain = None
         
-        # Initialize custom memory
-        self.memory = ChatMemory(max_tokens=2000)
+        # Initialize memory with window size to prevent overflow
+        self.memory = ConversationBufferWindowMemory(
+            memory_key="chat_history",
+            return_messages=True,
+            k=10  # Keep last 10 interactions
+        )
         
         # Keep track of processed files and their contents
         self.file_map = {}
@@ -144,23 +126,20 @@ class CodeAnalyzer:
 
         if documents:
             try:
-                # Create vector store
+                # Create vector store with settings
                 self.vector_store = Chroma.from_texts(
                     texts=[doc["text"] for doc in documents],
                     embedding=self.embeddings,
                     collection_name="code_chunks",
                     metadatas=[doc["metadata"] for doc in documents],
-                    persist_directory="./chroma_db",
-                    settings=self.chroma_settings
+                    client_settings=self.chroma_settings
                 )
                 
-                # Create conversation chain with improved system prompt
+                # Create conversation chain
                 self.conversation_chain = ConversationalRetrievalChain.from_llm(
                     self.llm,
                     retriever=self.vector_store.as_retriever(
-                        search_kwargs={
-                            "k": 6  # Increased relevant documents for better context
-                        }
+                        search_kwargs={"k": 6}
                     ),
                     memory=self.memory,
                     return_source_documents=True,
@@ -301,4 +280,4 @@ class CodeAnalyzer:
             self.conversation_chain = None
         self.memory.clear()
         self.file_map.clear()
-        self.file_contents.clear()  # Clear stored file contents 
+        self.file_contents.clear()  # Clear stored file contents
