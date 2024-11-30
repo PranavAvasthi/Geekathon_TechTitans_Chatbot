@@ -33,12 +33,23 @@ app.add_middleware(
 # Include API routes
 app.include_router(router, prefix="/api")
 
+# Add root endpoint for health check
+@app.get("/")
+async def root():
+    """Root endpoint to verify API is running."""
+    return {
+        "status": "online",
+        "message": "Code Analysis API is running",
+        "cors_origins": settings.ALLOWED_ORIGINS
+    }
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Code Analysis API...")
-    # Log CORS configuration
     logger.info(f"CORS Origins: {settings.ALLOWED_ORIGINS}")
+    logger.info(f"CORS Methods: {settings.ALLOWED_METHODS}")
+    logger.info(f"CORS Headers: {settings.ALLOWED_HEADERS}")
 
 # Shutdown event
 @app.on_event("shutdown")

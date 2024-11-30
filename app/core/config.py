@@ -15,14 +15,20 @@ class Settings(BaseSettings):
     # CORS settings
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:5173",    # Vite default
+        "http://127.0.0.1:5173",    # Vite alternative
         "http://localhost:3000",    # React default
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        # Add your production frontend URL here
-        os.getenv("FRONTEND_URL", "https://your-frontend-domain.com")
+        "http://127.0.0.1:3000",    # React alternative
+        "https://geekathon-techtitans-chatbot.onrender.com",  # Backend URL
+        "https://geekathon-techtitans-frontend.onrender.com"  # Frontend URL
     ]
-    ALLOWED_METHODS: List[str] = ["*"]
-    ALLOWED_HEADERS: List[str] = ["*"]
+    ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    ALLOWED_HEADERS: List[str] = [
+        "Content-Type",
+        "Authorization",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Methods",
+        "Access-Control-Allow-Headers"
+    ]
     ALLOW_CREDENTIALS: bool = True
     
     # API Keys
