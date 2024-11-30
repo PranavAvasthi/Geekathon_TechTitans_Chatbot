@@ -19,17 +19,17 @@ app = FastAPI(
     description=settings.DESCRIPTION
 )
 
+# Include API routes
+app.include_router(router, prefix="/api")
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"],  
 )
-
-# Include API routes
-app.include_router(router, prefix="/api")
 
 # Startup event
 @app.on_event("startup")

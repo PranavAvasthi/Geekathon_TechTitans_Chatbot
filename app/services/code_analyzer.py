@@ -7,7 +7,7 @@ from langchain_community.vectorstores import Chroma # type: ignore
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore
 from langchain_openai import ChatOpenAI # type: ignore
 from langchain.chains import ConversationalRetrievalChain # type: ignore
-from langchain.memory.buffer import ConversationBufferMemory # type: ignore
+from langchain_core.memory import BaseMemory # type: ignore
 from bs4 import BeautifulSoup # type: ignore
 import markdown # type: ignore
 import time
@@ -24,8 +24,27 @@ import chromadb.config # type: ignore
 # Load environment variables
 load_dotenv()
 
-# Configure ChromaDB to disable telemetry
-client = chromadb.Client(chromadb.config.Settings(anonymized_telemetry=False))
+class ChatMemory(BaseMemory):
+    """Custom chat memory implementation."""
+    def __init__(self, max_tokens: int = 2000):
+        self.chat_history = []
+        self.max_tokens = max_tokens
+        
+    def load_memory_variables(self, inputs: dict) -> dict:
+        """Load memory variables."""
+        return {"chat_history": self.chat_history}
+    
+    def save_context(self, inputs: dict, outputs: dict) -> None:
+        """Save context from this conversation to buffer."""
+        if "question" in inputs and "answer" in outputs:
+            self.chat_history.append((inputs["question"], outputs["answer"]))
+            # Keep only recent history to prevent token overflow
+            if len(self.chat_history) > 10:  # Adjust this number based on your needs
+                self.chat_history = self.chat_history[-10:]
+    
+    def clear(self) -> None:
+        """Clear memory contents."""
+        self.chat_history = []
 
 class CodeAnalyzer:
     def __init__(self):
@@ -60,18 +79,19 @@ class CodeAnalyzer:
         self.vector_store = None
         self.conversation_chain = None
         
-        # Updated memory initialization
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            output_key="answer",
-            input_key="question",
-            max_token_limit=2000  # Add token limit to prevent memory overflow
-        )
+        # Initialize custom memory
+        self.memory = ChatMemory(max_tokens=2000)
         
         # Keep track of processed files and their contents
         self.file_map = {}
         self.file_contents = {}
+        
+        # Configure ChromaDB settings
+        self.chroma_settings = chromadb.config.Settings(
+            anonymized_telemetry=False,
+            allow_reset=True,
+            is_persistent=False  # Use in-memory storage for temporary sessions
+        )
 
     def process_code_files(self, files: List[Path]) -> None:
         """Process code files and create a vector store."""
@@ -130,7 +150,8 @@ class CodeAnalyzer:
                     embedding=self.embeddings,
                     collection_name="code_chunks",
                     metadatas=[doc["metadata"] for doc in documents],
-                    persist_directory="./chroma_db"
+                    persist_directory="./chroma_db",
+                    settings=self.chroma_settings
                 )
                 
                 # Create conversation chain with improved system prompt
