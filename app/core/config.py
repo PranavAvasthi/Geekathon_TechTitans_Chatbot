@@ -11,8 +11,25 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     DESCRIPTION: str = "API for analyzing code repositories using AI"
     API_V1_STR: str = "/api"
-    ALLOWED_ORIGINS: List[str] = ["*"]  # In production, replace with specific origins
+    
+    # CORS settings
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:5173",    # Vite default
+        "http://localhost:3000",    # React default
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        # Add your production frontend URL here
+        os.getenv("FRONTEND_URL", "https://your-frontend-domain.com")
+    ]
+    ALLOWED_METHODS: List[str] = ["*"]
+    ALLOWED_HEADERS: List[str] = ["*"]
+    ALLOW_CREDENTIALS: bool = True
+    
+    # API Keys
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+
+    class Config:
+        case_sensitive = True
 
 settings = Settings() 

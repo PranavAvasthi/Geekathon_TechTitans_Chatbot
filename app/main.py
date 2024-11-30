@@ -19,22 +19,26 @@ app = FastAPI(
     description=settings.DESCRIPTION
 )
 
-# Include API routes
-app.include_router(router, prefix="/api")
-
-# Add CORS middleware
+# Add CORS middleware first, before any routes
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True, 
-    allow_methods=["*"], 
-    allow_headers=["*"],  
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=settings.ALLOW_CREDENTIALS,
+    allow_methods=settings.ALLOWED_METHODS,
+    allow_headers=settings.ALLOWED_HEADERS,
+    expose_headers=["*"],
+    max_age=3600,
 )
+
+# Include API routes
+app.include_router(router, prefix="/api")
 
 # Startup event
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Code Analysis API...")
+    # Log CORS configuration
+    logger.info(f"CORS Origins: {settings.ALLOWED_ORIGINS}")
 
 # Shutdown event
 @app.on_event("shutdown")
