@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv # type: ignore
 from langchain_huggingface import HuggingFaceEmbeddings # type: ignore
 from langchain_community.vectorstores import Chroma # type: ignore  
 from langchain.text_splitter import RecursiveCharacterTextSplitter # type: ignore

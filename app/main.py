@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI #type: ignore  
 from fastapi.middleware.cors import CORSMiddleware #type: ignore
+from fastapi.middleware.gzip import GZipMiddleware #type: ignore
 from app.api.routes import router
 from app.core.config import settings
 
@@ -22,13 +23,14 @@ app = FastAPI(
 # Add CORS middleware first, before any routes
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=settings.ALLOW_CREDENTIALS,
-    allow_methods=settings.ALLOWED_METHODS,
-    allow_headers=settings.ALLOWED_HEADERS,
-    expose_headers=["*"],
-    max_age=3600,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# Add Gzip compression
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Include API routes
 app.include_router(router, prefix="/api")
@@ -39,17 +41,13 @@ async def root():
     """Root endpoint to verify API is running."""
     return {
         "status": "online",
-        "message": "Code Analysis API is running",
-        "cors_origins": settings.ALLOWED_ORIGINS
+        "message": "Code Analysis API is running"
     }
 
 # Startup event
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Code Analysis API...")
-    logger.info(f"CORS Origins: {settings.ALLOWED_ORIGINS}")
-    logger.info(f"CORS Methods: {settings.ALLOWED_METHODS}")
-    logger.info(f"CORS Headers: {settings.ALLOWED_HEADERS}")
 
 # Shutdown event
 @app.on_event("shutdown")
